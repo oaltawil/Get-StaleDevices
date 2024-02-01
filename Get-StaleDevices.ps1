@@ -1,4 +1,6 @@
 #Requires -runasadministrator
+#Requires -modules "Microsoft.Graph.Authentication", "Microsoft.Graph.Identity.DirectoryManagement", "Microsoft.Graph.DeviceManagement"
+
 
 $WorkingDirectory = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
 
@@ -12,6 +14,8 @@ $RSAT = Get-WindowsCapability -Online -Name "Rsat.ActiveDirectory.DS-LDS.Tools~~
 
 if ($RSAT.State -eq "NotPresent") {
 
+    Write-Host "Installing the RSAT Active Directory Tools ..."
+
     Add-WindowsCapability -Online -Name "Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0"
 
 }
@@ -21,6 +25,20 @@ Connect-MgGraph -Scopes DeviceManagementManagedDevices.Read.All, Device.Read.All
 
 $StaleDevices = Get-MgDevice -All | Where-Object {$_.ApproximateLastSignInDateTime -ge $Date}
 
-$StaleDevices | `
-    Select-Object -Property AccountEnabled, DeviceId, OperatingSystem, OperatingSystemVersion, DisplayName, TrustType, ApproximateLastSignInDateTime | `
-        Export-CSV -Path $OutputFilePath -NoTypeInformation
+foreach ($StaleDevice in $StaleDevices) {
+
+    if ($StaleDevice.TrustType -eq "ServerAD") {
+
+        $ADComputer = Get-ADComputer -Identity $StaleDevice.DisplayName
+
+        if ($ADComputer.ObjectGUID -eq $StaleDevice.DeviceId) {
+
+            $ADComputerName = $ADComputer.Name
+
+            $ADComputerLastLogonDate = $ADComputer.LastLogonDate
+
+            $StaleDevice.AccountEnabled, $StaleDevice.DeviceId, $StaleDevice.OperatingSystemVersion, $StaleDevice.DisplayName, $StaleDevice.TrustType, $StaleDevice.ApproximateLastSignInDateTime, $ADComputerName, $ADComputerLastLogonDate | Export-CSV -Path $OutputFilePath -NoTypeInformation
+        }
+
+    }
+}
