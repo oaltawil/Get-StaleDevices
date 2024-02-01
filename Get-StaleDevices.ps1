@@ -1,4 +1,4 @@
-#Requires RunAsAdministrator
+#Requires -runasadministrator
 
 $WorkingDirectory = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
 
