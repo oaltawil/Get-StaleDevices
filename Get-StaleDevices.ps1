@@ -43,7 +43,7 @@ if ($RSAT.State -eq "NotPresent") {
 # Install the Microsoft Graph Directory Management and Device Management Modules and Connect to MS Graph
 #
 
-$MsGraphModuleNames = @("Microsoft.Graph.Identity.DirectoryManagement", "Microsoft.Graph.DeviceManagement")
+$MsGraphModuleNames = @("Microsoft.Graph.Identity.DirectoryManagement", "Microsoft.Graph.DeviceManagement", "Microsoft.Graph.DeviceManagement.Enrollment")
 
 foreach ($ModuleName in $MsGraphModuleNames) {
 
@@ -97,6 +97,8 @@ foreach ($AzureADDevice in $StaleAzureADDevices) {
     # Use the Azure AD Device Id to find the corresponding Intune device
     $IntuneDevice = Get-MgDeviceManagementManagedDevice -Filter "AzureADDeviceId eq '$($AzureADDevice.DeviceId)'" -ErrorAction SilentlyContinue
 
+    $AutoPilotDevice = Get-MgDeviceManagementWindowsAutopilotDeviceIdentity -Filter "azureActiveDirectoryDeviceId eq '$($AzureADDevice.DeviceId)'"
+
     # Create a Hashtable made of properties of the Azure AD Device, AD Computer Object, and Intune Device
     $DeviceRecord = [PSCustomObject]@{
 
@@ -113,11 +115,16 @@ foreach ($AzureADDevice in $StaleAzureADDevices) {
         ADComputerName = $ADComputer.Name
         ADComputerLastLogonDate = $ADComputer.LastLogonDate
         
+        IntuneDeviceRegistrationState = $IntuneDevice.DeviceRegistrationState
         IntuneDeviceID = $IntuneDevice.Id
         IntuneDeviceOSVersion = $IntuneDevice.OSVersion
         IntuneDeviceName = $IntuneDevice.DeviceName
-        IntuneDeviceRegistrationState = $IntuneDevice.DeviceRegistrationState
-        IntuneDeviceUserPrincipalName = $IntuneDevice.UserPrincipalName
+
+        AutoPilotDeviceEnrollmentState = $AutoPilotDevice.EnrollmentState
+        AutoPilotDeviceId = $AutoPilotDevice.Id
+        AutoPilotDeviceDisplayName = $AutoPilotDevice.DisplayName
+        AutoPilotDeviceLastContactedDateTime = $AutoPilotDevice.LastContactedDateTime
+    
     }
     
     # Cast the Hash Table to a PS Custom Object
