@@ -1,5 +1,4 @@
 #Requires -runasadministrator
-#Requires -modules "Microsoft.Graph.Authentication", "Microsoft.Graph.Identity.DirectoryManagement", "Microsoft.Graph.DeviceManagement"
 
 <#
 .NOTES
@@ -41,17 +40,21 @@ if ($RSAT.State -eq "NotPresent") {
 }
 
 #
-# Install the Microsoft Graph Directory Management and Microsoft Graph Device Management Modules
+# Install the Microsoft Graph Directory Management and Device Management Modules and Connect to MS Graph
 #
 
-if (-not (Get-Module -ListAvailable -Name "Microsoft.Graph.Identity.DirectoryManagement"))
-{
-    Install-Module -Name "Microsoft.Graph.Identity.DirectoryManagement" -Repository PSGallery -AllowClobber -Force -AcceptLicense -Confirm:$false
-}
+$MsGraphModuleNames = @("Microsoft.Graph.Identity.DirectoryManagement", "Microsoft.Graph.DeviceManagement")
 
-if (-not (Get-Module -ListAvailable -Name "Microsoft.Graph.DeviceManagement"))
-{
-    Install-Module -Name "Microsoft.Graph.DeviceManagement" -Repository PSGallery -AllowClobber -Force -AcceptLicense -Confirm:$false
+foreach ($ModuleName in $MsGraphModuleNames) {
+
+    if (-not (Get-Module -ListAvailable -Name $ModuleName)) {
+       
+        Write-Host "Installing PowerShell Module $ModuleName ..."
+
+        Install-Module -Name $ModuleName -Repository PSGallery -AllowClobber -Force -AcceptLicense -Confirm:$false
+    
+    }
+
 }
 
 # Connect to Microsoft Graph and request the ability to read all Azure AD Devices and all Intune Managed Devices
@@ -63,7 +66,7 @@ Connect-MgGraph -Scopes Device.Read.All, DeviceManagementManagedDevices.Read.All
 
 $Date = (Get-Date).AddDays(-$StaleDeviceAge)
 
-# The operator for the date comparison must be -le (less than or equal to)
+# The operator for the date comparison must be -le (less than or equal to), which means older
 $StaleAzureADDevices = Get-MgDevice -All | Where-Object {$_.ApproximateLastSignInDateTime -ge $Date}
 
 # Initialize an empty array
@@ -76,20 +79,26 @@ foreach ($AzureADDevice in $StaleAzureADDevices) {
     if ($AzureADDevice.TrustType -eq "ServerAD") {
 
         # Use the Azure AD Device Display Name to find the corresponding AD Computer object
-        $ADComputer = Get-ADComputer -Identity $AzureADDevice.DisplayName -ErrorAction SilentlyContinue
+        # $ADComputer = Get-ADComputer -Identity $AzureADDevice.DisplayName -Properties * -ErrorAction SilentlyContinue
         
         # Use the Azure AD Device Id to find the corresponding AD Computer object
-        # $ADComputer = Get-ADComputer -Identity $AzureADDevice.DeviceId -ErrorAction SilentlyContinue
+        $ADComputer = Get-ADComputer -Identity $AzureADDevice.DeviceId -Properties * -ErrorAction SilentlyContinue
 
+    }
+    else {
+
+        $ADComputer = $null
+    
     }
     
     # Use the Azure AD Device Display Name to find the corresponding Intune device
-    $IntuneDevice = Get-MgDeviceManagementManagedDevice -Filter "DeviceName eq '$($AzureADDevice.DisplayName)'" -ErrorAction SilentlyContinue
+    # $IntuneDevice = Get-MgDeviceManagementManagedDevice -Filter "DeviceName eq '$($AzureADDevice.DisplayName)'" -ErrorAction SilentlyContinue
     
     # Use the Azure AD Device Id to find the corresponding Intune device
-    # $IntuneDevice = Get-MgDeviceManagementManagedDevice -Filter "AzureADDeviceId eq '$($AzureADDevice.DeviceId)'" -ErrorAction SilentlyContinue
+    $IntuneDevice = Get-MgDeviceManagementManagedDevice -Filter "AzureADDeviceId eq '$($AzureADDevice.DeviceId)'" -ErrorAction SilentlyContinue
 
-    $DeviceRecord = @{
+    # Create a Hashtable made of properties of the Azure AD Device, AD Computer Object, and Intune Device
+    $DeviceRecord = [PSCustomObject]@{
 
         AzureADDeviceEnabled = $AzureADDevice.AccountEnabled
         AzureADDeviceID = $AzureADDevice.DeviceId
@@ -103,16 +112,15 @@ foreach ($AzureADDevice in $StaleAzureADDevices) {
         ADComputerOSVersion = $ADComputer.OperatingSystemVersion
         ADComputerName = $ADComputer.Name
         ADComputerLastLogonDate = $ADComputer.LastLogonDate
-        ADComputerPasswordLastSet = $ADComputer.PasswordLastSet
-
+        
         IntuneDeviceID = $IntuneDevice.Id
         IntuneDeviceOSVersion = $IntuneDevice.OSVersion
         IntuneDeviceName = $IntuneDevice.DeviceName
         IntuneDeviceRegistrationState = $IntuneDevice.DeviceRegistrationState
         IntuneDeviceUserPrincipalName = $IntuneDevice.UserPrincipalName
-    
     }
-            
+    
+    # Cast the Hash Table to a PS Custom Object
     $DeviceRecords += $DeviceRecord
 
 }
@@ -128,3 +136,11 @@ $OutputFileName = "StaleDevices-" + $(Get-Date -Format "MM-dd-yyyy-HHmm") + ".cs
 $OutputFilePath = Join-Path -Path $WorkingDirectory -ChildPath $OutputFileName
 
 $DeviceRecords | Export-CSV -Path $OutputFilePath -NoTypeInformation
+
+if (Test-Path -Path $OutputFilePath) {
+
+    Write-Host "`nSuccessfully exported the results to $OutputFilePath`n"
+
+    & $OutputFilePath
+
+}
