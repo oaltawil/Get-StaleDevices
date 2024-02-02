@@ -58,7 +58,7 @@ foreach ($ModuleName in $MsGraphModuleNames) {
 }
 
 # Connect to Microsoft Graph and request the ability to read all Azure AD Devices and all Intune Managed Devices
-Connect-MgGraph -Scopes Device.Read.All, DeviceManagementManagedDevices.Read.All -NoWelcome
+Connect-MgGraph -Scopes Device.Read.All, DeviceManagementManagedDevices.Read.All, DeviceManagementServiceConfig.Read.All  -NoWelcome
 
 #
 # Retrieve and filter all Azure AD devices
@@ -97,7 +97,7 @@ foreach ($AzureADDevice in $StaleAzureADDevices) {
     # Use the Azure AD Device Id to find the corresponding Intune device
     $IntuneDevice = Get-MgDeviceManagementManagedDevice -Filter "AzureADDeviceId eq '$($AzureADDevice.DeviceId)'" -ErrorAction SilentlyContinue
 
-    $AutoPilotDevice = Get-MgDeviceManagementWindowsAutopilotDeviceIdentity -Filter "azureActiveDirectoryDeviceId eq '$($AzureADDevice.DeviceId)'"
+    $AutoPilotDevice = Get-MgDeviceManagementWindowsAutopilotDeviceIdentity -Filter "azureActiveDirectoryDeviceId eq '$($AzureADDevice.DeviceId)'" -ErrorAction SilentlyContinue
 
     # Create a Hashtable made of properties of the Azure AD Device, AD Computer Object, and Intune Device
     $DeviceRecord = [PSCustomObject]@{
