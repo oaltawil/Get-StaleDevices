@@ -67,7 +67,7 @@ Connect-MgGraph -Scopes Device.Read.All, DeviceManagementManagedDevices.Read.All
 $Date = (Get-Date).AddDays(-$StaleDeviceAge)
 
 # The operator for the date comparison must be -le (less than or equal to), which means older
-$StaleAzureADDevices = Get-MgDevice -All | Where-Object {$_.ApproximateLastSignInDateTime -ge $Date}
+$StaleAzureADDevices = Get-MgDevice -All | Where-Object {$_.ApproximateLastSignInDateTime -le $Date}
 
 # Initialize an empty array
 $DeviceRecords = @()
